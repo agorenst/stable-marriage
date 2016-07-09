@@ -74,48 +74,50 @@ vector<int> compute_stable_marriage(vector<int>& preferences, const int n) {
     assert(n > 0);
     assert(preferences.size() == n*n*2);
 
-    vector<int> assignment(n*2,-1);
+    vector<int> assignment(n,-1);
 
-    // We're going to constantly iterate over the men's current marriage
-    // status, which is the first half of the "assignment" vector.
-    // We maintain an explicit storage of the woman's fiance because
-    // it makes it very easy to find the "currentSuitor". Maybe there's
-    // a better way.
-    auto assignBegin = begin(assignment);
-    auto assignEnd = begin(assignment)+n;
     for (;;) {
         // this extracts the index of the first unattached man.
-        auto miter = find(begin(assignment), begin(assignment)+n, -1);
+        auto miter = find(begin(assignment), end(assignment), -1);
         if (miter == begin(assignment)+n) { break; } // we're done!
-        // we trust that the men are listed first, so we hack up
-        // their the index from the iterator from subtraction
-        auto m = distance(begin(assignment), miter);
-        //cout << "Considering man at index " << m << endl;
 
-        // find the woman we're going to propose to
+        // we're equating the index of the man's assignment with the man's
+        // label. I.e., men are labeled 0..n-1 in the preferences vector.
+        auto m = distance(begin(assignment), miter);
+
+        // extract that man's preference list
         auto mans_pref_list_begin = begin(preferences)+(m*n);
         auto mans_pref_list_end = begin(preferences)+(m*n+n);
+        // find the first woman not yet "checked off"
         auto witer = find_if(mans_pref_list_begin, mans_pref_list_end,
                             [](int v) { return v != -1; });
         assert(witer != mans_pref_list_end);
-        auto w = int{*witer};
-        *witer = -1; // we have considered this woman, so we never consider again.
+        auto w = *witer;
+        *witer = -1; // we are now considering this woman, so remove from prefs
 
 
-        auto currentSuitor = int{assignment[w]};
-        if (currentSuitor == -1) {
-            assignment[w] = m;
+        // This is the canonical question: should we cache the results
+        // in a larger vector (easy to "save" the woman's latest fiance)
+        // but would that actually make things faster than finding the man
+        // who says that he's engaged to a woman? /insert joke here.
+
+        // ptr to rival
+        auto cmiter = find(begin(assignment), end(assignment), w);
+        // who is our rival?
+        auto cm = distance(begin(assignment), cmiter);
+
+        // Case where woman has never been proposed to.
+        if (cm == n) {
             assignment[m] = w;
         }
         else {
-            auto woman_pref_list_begin = begin(preferences)+(w*n);
-            auto woman_pref_list_end = begin(preferences)+(w*n+n);
-            auto curDist = find(woman_pref_list_begin, woman_pref_list_end, currentSuitor);
-            auto newDist = find(woman_pref_list_begin, woman_pref_list_end, m);
-            if (curDist > newDist) {
-                assignment[w] = m;
+            auto woman_pref_begin = begin(preferences)+(w*n);
+            auto woman_pref_end = begin(preferences)+(w*n+n);
+            auto firstFound = find_if(woman_pref_begin, woman_pref_end,
+                                [cm,m](int v) { return v == cm || v == m; });
+            if (*firstFound == m) {
                 assignment[m] = w;
-                assignment[currentSuitor] = -1;
+                assignment[cm] = -1;
             }
         }
     }
