@@ -4,7 +4,7 @@
 #include <cassert>
 
 // For "woman_ranking_map"
-#include "stable-marriage.h"
+#include "stable_marriage.h"
 
 using namespace std;
 

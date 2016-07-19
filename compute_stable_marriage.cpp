@@ -3,7 +3,7 @@
 #include <iostream>
 #include <cassert>
 
-#include "stable-marriage.h"
+#include "stable_marriage.h"
 
 using namespace std;
 
