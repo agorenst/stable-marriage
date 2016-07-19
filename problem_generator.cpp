@@ -30,21 +30,13 @@ int main(int argc, char* argv[]) {
     random_device rd;
     mt19937 g(rd());
 
-    for (int i = 0; i < n; ++i) {
-        cout << i+1 << " ";
-        auto v = default_assignment(n,n);
-        // TODO create a random shuffle?
-        shuffle(begin(v), end(v), g);
-        for (auto&& x : v) { cout << ((x+1)-n) << " "; }
-        cout << endl;
-    }
+    for (int i = 0; i < 2*n; ++i) {
+        cout << (i%n)+1 << " ";
 
-    for (int i = n; i < 2*n; ++i) {
-        cout << ((i+1)-n) << " ";
         auto v = default_assignment(n,0);
-        // TODO create a random shuffle?
         shuffle(begin(v), end(v), g);
-        for (auto&& x : v) { cout << x+1 << " "; }
+
+        for (auto&& x : v) { cout << (x+1) << " "; }
         cout << endl;
     }
 }

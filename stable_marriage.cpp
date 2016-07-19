@@ -3,64 +3,43 @@
 #include <iostream>
 #include <cassert>
 
-/*
-This is a modern C++ implementation of the "perfect matching" algorithm
-as explained by Kleinberg and Tardos. The key design approach is to
-ensure that every iteration of the main loop runs in constant time. We
-do this by maintaining several helper functions. 
+#include "stable_marriage.h"
 
-The input format is in line with http://www.spoj.com/problems/STABLEMP/.
-*/
+//***************************************************************************//
+// The main event! This contains the implementation of how to compute a stable
+// marriage. It also contains the definition of a few helper functions, and
+// an alternative implementation that is in some ways "simpler".
+// The implementation is based off of Kleinberg and Tardos, page 42 (section
+// 2.3). There is always a balance between a sophisticated implementation,
+// and an implementation that can be read by others. I hope this strikes a
+// good balance for students. Definitely email me at <mygithubname>@outlook.com
+// if you have suggestions or questions.
+//***************************************************************************//
 
 using namespace std;
 
-
-// Really, we're inverting permutation matrices here.
-// The only caveat is that "preferences" is a 2n x n matrix,
-// so we look at the second half.
-vector<int> woman_ranking_map(const vector<int>& preferences, const int n) {
-    vector<int> woman_ranking(n*n,-1);
-
-    auto women_prefs_begin = begin(preferences)+(n*n);
-    auto women_ranks_begin = begin(woman_ranking);
-
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            // the j-th most preferred man by woman i:
-            women_ranks_begin[women_prefs_begin[j]] = j;
-        }
-        women_prefs_begin += n;
-        women_ranks_begin += n;
-    }
-
-    return woman_ranking;
-}
-
-
-
-// This is the main algorithm, see page 42, section 2.3.
-// We do a slight variation (vectors only, no LL), but basically follow
-// their approach.
+// The main algorithm.
 vector<int> stable_marriage(const vector<int>& preferences, const int n) {
     // We preprocess the preference list so that it's 
     // constant time to determine if a woman prefers one suitor
     // over the other.
     auto woman_preferences = woman_ranking_map(preferences, n);
 
-    // This is the ultimately product, where assignment[w] = m
-    // means that woman w is married to man m.
+    // This is the ultimate product, where assignment[w] = m
+    // means that woman w is married to suitor m. We use -1 to indicate
+    // unattached.
     vector<int> assignment(n,-1);
 
-    // Set up our worklist, of men still needing to be married.
+    // Set up our worklist, of suitors still needing to be married.
     // We use an array so that we only allocate memory once.
     vector<int> worklist(n);
     for (int i = 0; i < n; ++i) { worklist[i] = i; }
 
-    // Set up who's next for each man to ask.
-    // They each start out wanting to ask their top choice, of course.
+    // Set up who's next for each suitor to ask.
+    // They each start out wanting to ask their top choice.
     vector<int> men_next(n,0);
 
-
+    // While there is an unattached suitor.
     while (worklist.size()) {
         // Get the current suitor
         auto suitor = worklist[worklist.size()-1];
@@ -70,7 +49,8 @@ vector<int> stable_marriage(const vector<int>& preferences, const int n) {
         // This pattern of iterator + n*offset is to emulate our vector
         // being a matrix.
         auto suitor_preferences = begin(preferences) + (n*suitor);
-        auto woman = suitor_preferences[men_next[suitor]++];
+        auto woman = suitor_preferences[men_next[suitor]];
+        men_next[suitor]++;
 
         // if she's unattached, easy.
         if (assignment[woman] == -1) {
@@ -79,11 +59,14 @@ vector<int> stable_marriage(const vector<int>& preferences, const int n) {
         else {
             // otherwise, she chooses the man she prefers
             auto woman_pref = begin(woman_preferences) + (n*woman);
+            // The woman ranks the suitor sooner (i.e., better) than
+            // her current fiance.
             if (woman_pref[assignment[woman]] > woman_pref[suitor]) {
                 worklist.push_back(assignment[woman]);
                 assignment[woman] = suitor;
             }
             else {
+                // this should never allocate memory!
                 worklist.push_back(suitor);
             }
         }
@@ -147,6 +130,34 @@ vector<int> compute_stable_marriage(vector<int>& preferences, const int n) {
     }
     // Note: will we actually be smart about move construction?
     return assignment;
+}
+
+// The second half of the preferences matrix is an n x n matrix W
+// where W[i,j] is woman i's j-th choice of suitor. So W[i,0] is her
+// most preferred suitor, W[i,1] is her next, and so on. This is
+// just like the men's preference ranking as well.
+//
+// This function produces a W[i,m] = j matrix, where given a woman i
+// and a suitor m, we get the rank woman i gives suitor m.
+// This makes it much easier for a woman to see if she prefers m1 or m2:
+// she prefers m1 exactly when W[i,m1] < W[i,m2] (e.g., she may prefer
+// m1 as her 2nd choice, so W[i,m1] == 2, and m2 is her 5th, so W[i,m2] == 5.
+vector<int> woman_ranking_map(const vector<int>& preferences, const int n) {
+    vector<int> woman_ranking(n*n,-1);
+
+    auto women_prefs_begin = begin(preferences)+(n*n);
+    auto women_ranks_begin = begin(woman_ranking);
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            // the j-th most preferred man by woman i:
+            women_ranks_begin[women_prefs_begin[j]] = j;
+        }
+        women_prefs_begin += n;
+        women_ranks_begin += n;
+    }
+
+    return woman_ranking;
 }
 
 

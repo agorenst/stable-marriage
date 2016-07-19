@@ -7,6 +7,9 @@
 
 using namespace std;
 
+// The real focus of this repository is in stable_marriage.cpp
+// This file simply provides a "main" function to be able to read
+// in a set of preferences, and output the stable marriage.
 
 // Simply reads in from stdin.
 int main(int argc, char* argv[]) {
@@ -19,7 +22,6 @@ int main(int argc, char* argv[]) {
 
         auto preferences = read_preferences(n);
         auto assignment = stable_marriage(preferences, n);
-        //auto assignment = compute_stable_marriage(preferences, n);
 
         // We output the woman, and the man she's assigned to.
         for (int j = 0; j < n; ++j) {
