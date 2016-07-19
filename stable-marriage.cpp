@@ -3,9 +3,21 @@
 #include <iostream>
 #include <cassert>
 
+/*
+This is a modern C++ implementation of the "perfect matching" algorithm
+as explained by Kleinberg and Tardos. The key design approach is to
+ensure that every iteration of the main loop runs in constant time. We
+do this by maintaining several helper functions. 
+
+The input format is in line with http://www.spoj.com/problems/STABLEMP/.
+*/
 
 using namespace std;
 
+
+// Really, we're inverting permutation matrices here.
+// The only caveat is that "preferences" is a 2n x n matrix,
+// so we look at the second half.
 vector<int> woman_ranking_map(const vector<int>& preferences, const int n) {
     vector<int> woman_ranking(n*n,-1);
 
@@ -21,86 +33,67 @@ vector<int> woman_ranking_map(const vector<int>& preferences, const int n) {
         women_ranks_begin += n;
     }
 
-    // correctness:
-    for (auto&& x : woman_ranking) { assert(x != -1); }
-    // moreover, every row should have exactly a [0,n) set of indices.
     return woman_ranking;
 }
 
 
-// The input format for "preferences" is:
-// {
-// These first 4 rows are the preference lists for men 0...3
-//  3 2 0 1
-//  1 0 2 3
-//  0 2 3 1
-//  3 2 0 1
-// These last 4 rows are the preference lists for women 0...3
-//  2 1 3 0
-//  1 2 0 3
-//  2 0 1 3
-//  2 1 3 0
-// }
-// This allows for a lot of convenience as we can treat men and women
-// as indices into arrays, so that data[x] can have information about man
-// or woman x.
+
+// This is the main algorithm, see page 42, section 2.3.
+// We do a slight variation (vectors only, no LL), but basically follow
+// their approach.
 vector<int> stable_marriage(const vector<int>& preferences, const int n) {
-    assert(n > 0);
-    assert(preferences.size() == n*n*2);
+    // We preprocess the preference list so that it's 
+    // constant time to determine if a woman prefers one suitor
+    // over the other.
+    auto woman_preferences = woman_ranking_map(preferences, n);
 
-    auto woman_ranks = woman_ranking_map(preferences, n);
-
-    // Set up the list of men to process
-    vector<int> men_to_process(n);
-    for (int i = 0; i < n; ++i) { men_to_process[i] = i; }
-
-    // Set up who's next for each man to ask.
-    vector<int> men_next(n,0);
-
+    // This is the ultimately product, where assignment[w] = m
+    // means that woman w is married to man m.
     vector<int> assignment(n,-1);
 
-    while (men_to_process.size()) {
-        auto suitor = men_to_process[men_to_process.size()-1];
-        men_to_process.pop_back();
+    // Set up our worklist, of men still needing to be married.
+    // We use an array so that we only allocate memory once.
+    vector<int> worklist(n);
+    for (int i = 0; i < n; ++i) { worklist[i] = i; }
 
+    // Set up who's next for each man to ask.
+    // They each start out wanting to ask their top choice, of course.
+    vector<int> men_next(n,0);
+
+
+    while (worklist.size()) {
+        // Get the current suitor
+        auto suitor = worklist[worklist.size()-1];
+        worklist.pop_back();
+
+        // Determine the next woman our suitor will ask.
+        // This pattern of iterator + n*offset is to emulate our vector
+        // being a matrix.
         auto suitor_preferences = begin(preferences) + (n*suitor);
         auto woman = suitor_preferences[men_next[suitor]++];
 
+        // if she's unattached, easy.
         if (assignment[woman] == -1) {
             assignment[woman] = suitor;
         }
         else {
-            auto woman_rank = begin(woman_ranks) + (n*woman);
-            if (woman_rank[assignment[woman]] > woman_rank[suitor]) {
-                men_to_process.push_back(assignment[woman]);
+            // otherwise, she chooses the man she prefers
+            auto woman_pref = begin(woman_preferences) + (n*woman);
+            if (woman_pref[assignment[woman]] > woman_pref[suitor]) {
+                worklist.push_back(assignment[woman]);
                 assignment[woman] = suitor;
             }
             else {
-                men_to_process.push_back(suitor);
-            }
-        }
-    }
-
-    // check for stability:
-    for (int i = 0; i < n; ++i) {
-        auto suitor_preferences = begin(preferences) + (n*i);
-        for (auto pw = suitor_preferences; pw != suitor_preferences+n; ++pw) {
-            if (assignment[*pw] == i) { break; }
-            auto woman = *pw;
-            auto woman_rank = begin(woman_ranks) + (n*woman);
-            if (woman_rank[assignment[*pw]] > woman_rank[i]) {
-                assert(0);
+                worklist.push_back(suitor);
             }
         }
     }
     return assignment;
 }
 
-// This is the main event!
-// Performance consideration: we better be returning the assignment by move-
-// semantics.
-// This is based off of the classic algorithm, though I'm a bit fuzzy on the
-// details.
+// This was my first implementation, where I was very much against
+// any extra memory allocations. This requires a slightly different
+// input format, where the women are labelled [n,n*2) rather than [0,n).
 vector<int> compute_stable_marriage(vector<int>& preferences, const int n) {
     assert(n > 0);
     assert(preferences.size() == n*n*2);
@@ -157,8 +150,9 @@ vector<int> compute_stable_marriage(vector<int>& preferences, const int n) {
 }
 
 
+// Read in our input
 // Pretty hacky, in the sense that we're reading in from stdin.
-vector<int> read_preferences(int n) {
+vector<int> read_preferences(int n, bool bigoffset) {
     vector<int> preferences(2*n*n);
 
     // read in all the preferences
@@ -171,46 +165,12 @@ vector<int> read_preferences(int n) {
         for (int k = 0; k < n; ++k) {
             int suitor;
             cin >> suitor;
-            //cout << "\tRead in suitor: " << suitor << endl;
             --suitor; // to avoid indexing issues.
 
-            // here we scale to play better with our labeling model.
-            //if (j < n) { suitor += n; }
+            if (bigoffset && j < n) { suitor += n; }
             preferences[(j*n)+k] = suitor;
         }
     }
     // we really should be smart about move construction here.
     return preferences;
-}
-
-// Simply reads in from stdin.
-int main(int argc, char* argv[]) {
-    int numtests;
-    cin >> numtests;
-
-    for (int i = 0; i < numtests; ++i) {
-        int n;
-        cin >> n;
-
-        //// Do the stable matching!
-        //auto preferences = read_preferences(n);
-        ////auto preferences_copy{preferences};
-        //auto assignment = compute_stable_marriage(preferences, n);
-
-        auto preferences = read_preferences(n);
-        //for (int i = 0; i < 2*n; ++i) {
-        //    cout << i << ": ";
-        //    for (int j = 0; j < n; ++j) {
-        //        cout << preferences[i*n+j] << " ";
-        //    }
-        //    cout << endl;
-        //}
-        auto assignment = stable_marriage(preferences, n);
-
-        //cout << "Result: " << endl;
-        for (int j = 0; j < n; ++j) {
-            cout << j+1 << " " << assignment[j]+1 << endl;
-            //cout << j+1 << " " << (assignment[j]+1)-n << endl;
-        }
-    }
 }
